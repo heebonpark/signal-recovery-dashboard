@@ -1,5 +1,7 @@
 import pandas as pd
 import os
+import re
+import datetime
 import unicodedata
 import streamlit as st
 
@@ -33,11 +35,14 @@ def load_data(file_type="무신호"):
     # Determine which file to load
     # macOS(HFS+/APFS)는 한글 파일명을 NFD(자모 분리)로 저장하므로,
     # 소스코드에 NFC로 적힌 문자열과 그대로 비교하면 매칭되지 않는다. 정규화 후 비교.
+    # 두 파일명 모두 "무신호"와 "미복구"를 공통으로 포함하므로("무신호 미복구_..._미복구 리스트.xlsx"),
+    # 단순 부분일치로는 파일을 구분할 수 없다. "{종류} 리스트.xlsx"로 끝나는지로 정확히 구분한다.
     target = unicodedata.normalize("NFC", file_type)
+    suffix = f"{target} 리스트.xlsx"
     filename = ""
     for f in os.listdir(DATA_DIR):
         normalized = unicodedata.normalize("NFC", f)
-        if target in normalized and normalized.endswith(".xlsx"):
+        if normalized.endswith(suffix):
             filename = f
             break
 
@@ -97,6 +102,29 @@ def get_branch_vehicle_map():
             mapping.setdefault(branch, set()).update(cars)
 
     return {branch: sorted(cars) for branch, cars in sorted(mapping.items())}
+
+
+@st.cache_data
+def get_data_snapshot_info():
+    """랜딩 페이지에 표시할 요약 정보: 데이터 기준일(파일명의 YYMMDD)과 전체 관리 건수."""
+    total_rows = 0
+    for file_type in ["무신호", "미복구"]:
+        total_rows += len(load_data(file_type))
+
+    snapshot_date = None
+    for f in os.listdir(DATA_DIR):
+        normalized = unicodedata.normalize("NFC", f)
+        if not normalized.endswith(".xlsx"):
+            continue
+        match = re.search(r"(\d{6})", normalized)
+        if match:
+            try:
+                snapshot_date = datetime.datetime.strptime(match.group(1), "%y%m%d").date()
+                break
+            except ValueError:
+                continue
+
+    return {"snapshot_date": snapshot_date, "total_rows": total_rows}
 
 
 def filter_data_by_role(df, user_info):
