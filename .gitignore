@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.DS_Store
+.venv/
+
+# 고객 개인정보가 포함된 원본 데이터 파일은 커밋하지 않음
+*.xlsx
+!sample*.xlsx
+
+.streamlit/secrets.toml
